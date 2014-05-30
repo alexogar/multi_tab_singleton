@@ -11,9 +11,10 @@
  */
 var MultiTabSingleton = function(name, obj, optionsParam) {
   var __toString = Object.prototype.toString;
-  /*
+  
   var defaultOptions = {
-    heartBeat : 100
+    heartBeat : 50,
+    heartBeatTimeout : 10
   };     
   
   if (optionsParam == null) {
@@ -23,7 +24,7 @@ var MultiTabSingleton = function(name, obj, optionsParam) {
   var options = {};
   for ( var o in defaultOptions) {
     options[o] = optionsParam[o] || defaultOptions[o];
-  }  */
+  }  
   var clone = function(source, destination) {
     for(var property in source) {
       if(typeof source[property] === "object" && source[property] !== null && destination[property]) {
@@ -82,6 +83,9 @@ var MultiTabSingleton = function(name, obj, optionsParam) {
     },
     set: function(key, value) {
       this._s.set(key, value);
+    },
+    subscribe: function(key,callback) {
+      this._s.listenKeyChange(key,callback)
     }
   };
   store.init();
@@ -104,28 +108,13 @@ var MultiTabSingleton = function(name, obj, optionsParam) {
       }
       this._o = new ObjectObserver(this._obj);
       var self = this;
-      this._o.open(function(added, removed, changed, getOldValueFn) {
-        console.log(self._obj.a)
+      this._o.open(function(added, removed, changed, getOldValueFn) {                  
         self._obj.saveValues();
-      });
-      Platform.performMicrotaskCheckpoint();
-    }      
-      /*
-      // respond to changes to the obj.
-      Object.keys(added).forEach(function(property) {
-        //property; // a property which has been been added to obj
-        //added[property]; // its value
-      });
-      Object.keys(removed).forEach(function(property) {
-        //property; // a property which has been been removed from obj
-        //getOldValueFn(property); // its old value
-      });
-      Object.keys(changed).forEach(function(property) {
-        //property; // a property on obj which has changed value.
-        //changed[property]; // its value
-        //getOldValueFn(property); // its old value
-      });
-      */    
+      });      
+    },
+    close : function() {
+      this._o.close();
+    }
   }
   var api = {
     master: false,
@@ -141,7 +130,7 @@ var MultiTabSingleton = function(name, obj, optionsParam) {
     for(var p in participants) {
       var part = participants[p];
       var currentTimestamp = new Date().getTime();
-      if(part.lastAccessedTime > currentTimestamp - 100) {
+      if(part.lastAccessedTime > currentTimestamp - options.heartBeat) {
         liveParticipants.push(part)
       }
     }
@@ -187,6 +176,13 @@ var MultiTabSingleton = function(name, obj, optionsParam) {
     store.set(name + "_value", this)
   };
   
+  obj.subscribe = function() {
+    var self = this;
+    store.subscribe(name + "_value", function(key, action){
+      self.loadValues();
+    })
+  }
+  
   obj.substituteFunctionsInObject = substituteFunctionsInObject;
   obj.api = api;    
   
@@ -194,8 +190,18 @@ var MultiTabSingleton = function(name, obj, optionsParam) {
     obj.saveValues();
   }
   
-  obj.loadValues();  
+  obj.loadValues();    
   observer.init(obj);
+  //setup periodic interval to propagate changes and function calls if object observe doesn`t exists
+  if (Object.observe == null) {
+    var timeoutCallback = function() {
+      Platform.performMicrotaskCheckpoint();
+      api = negotiateMasterSlave();
+      setTimeout(timeoutCallback, options.heartBeatTimeout);
+    }
+    timeoutCallback();
+  }
+  obj.subscribe();
   return observer._obj;
 };
 // Version.

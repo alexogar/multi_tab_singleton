@@ -1,3 +1,4 @@
+$.jStorage.flush(); 
 test("the base function exists with dependency", function() {
   ok(MultiTabSingleton);
   ok($.jStorage);
@@ -114,16 +115,14 @@ asyncTest("the master/slave field change propagation", function() {
   slave.a = 5;
   setTimeout(function() {
     ok($.jStorage.get('TestMaster_value').a === 5)
-    ok(obj.a === 5);
-    start();
-  },1000);
-  stop();
-  
-  obj.a = 6;
-  setTimeout(function() {
-    ok($.jStorage.get('TestMaster_value').a === 6)
-    ok(slave.a === 6);
-    start();
+    ok(obj.a === 5);    
+    obj.a = 6;
+    setTimeout(function() {
+      ok($.jStorage.get('TestMaster_value').a === 6)
+      ok(slave.a === 6);
+      start();
+    },1000);  
   },1000);  
+     
 });
 
