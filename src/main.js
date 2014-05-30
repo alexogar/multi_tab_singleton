@@ -14,7 +14,9 @@ var MultiTabSingleton = function(name, obj, optionsParam) {
   
   var defaultOptions = {
     heartBeat : 50,
-    heartBeatTimeout : 10
+    heartBeatTimeout : 10,
+    forseMaster : false,
+    singletonFunctionExecution : true
   };     
   
   if (optionsParam == null) {
