@@ -78,6 +78,8 @@
     });
   });
 
+  //We also need to negotiate master/slave configuration
+
   //also we need to mock all functions we will find in that object
   //so we can execute function only on master singleton object
 
