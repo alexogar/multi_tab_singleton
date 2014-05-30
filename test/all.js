@@ -57,3 +57,13 @@ test("the function function substitution works", function() {
   ok(obj.testArr[0]() === 'wraparr')
   ok(obj.testObj.test4() === 'wraptest4')
 });
+
+test("the master/slave negotiation", function() {
+  $.jStorage.flush();  
+  
+  var obj = MultiTabSingleton('TestMaste',{a:2});
+  ok(obj)
+  ok(obj.substituteFunctionsInObject)
+  ok(obj.api)
+  ok(obj.api.master == true)
+});
