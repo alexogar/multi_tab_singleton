@@ -67,6 +67,13 @@ test("the master/slave negotiation when only one instance", function() {
   ok(obj.api)
   ok(obj.api.master == true)
   ok(obj.a === 2)
+  
+  obj = MultiTabSingleton('TestMaster2',{a:2});
+  ok(obj)
+  ok(obj.substituteFunctionsInObject)
+  ok(obj.api)
+  ok(obj.api.master == true)
+  ok(obj.a === 2)
 });
 
 test("the master/slave negotiation when two instances", function() {
@@ -79,10 +86,42 @@ test("the master/slave negotiation when two instances", function() {
   ok(obj.api.master == true)
   ok(obj.a === 2)
   
-  var slave = MultiTabSingleton('TestSlave',{a:3});
+  var slave = MultiTabSingleton('TestMaster',{a:3});
   ok(slave)
   ok(slave.substituteFunctionsInObject)
   ok(slave.api)
   ok(slave.api.master == false)
   ok(slave.a === 2)
 });
+
+asyncTest("the master/slave field change propagation", function() {
+  $.jStorage.flush();  
+  
+  var obj = MultiTabSingleton('TestMaster',{a:2});
+  ok(obj)
+  ok(obj.substituteFunctionsInObject)
+  ok(obj.api)
+  ok(obj.api.master == true)
+  ok(obj.a === 2)
+  
+  var slave = MultiTabSingleton('TestMaster',{a:3});
+  ok(slave)
+  ok(slave.substituteFunctionsInObject)
+  ok(slave.api)
+  ok(slave.api.master == false)
+  ok(slave.a === 2)
+  
+  slave.a = 5;
+  setTimeout(function() {
+    ok(obj.a === 5);
+    start();
+  },1000);
+  stop();
+  
+  obj.a = 6;
+  setTimeout(function() {
+    ok(slave.a === 6);
+    start();
+  },1000);  
+});
+
