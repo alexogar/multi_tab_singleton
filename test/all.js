@@ -113,6 +113,7 @@ asyncTest("the master/slave field change propagation", function() {
   
   slave.a = 5;
   setTimeout(function() {
+    ok($.jStorage.get('TestMaster_value').a === 5)
     ok(obj.a === 5);
     start();
   },1000);
@@ -120,6 +121,7 @@ asyncTest("the master/slave field change propagation", function() {
   
   obj.a = 6;
   setTimeout(function() {
+    ok($.jStorage.get('TestMaster_value').a === 6)
     ok(slave.a === 6);
     start();
   },1000);  

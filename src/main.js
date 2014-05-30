@@ -89,26 +89,44 @@ var MultiTabSingleton = function(name, obj, optionsParam) {
   if(ObjectObserver === null) {
     throw new ReferenceError("observer-js is not exists");
   }
-  /*
-   var observer = new ObjectObserver(obj);
-  observer.open(function(added, removed, changed, getOldValueFn) {
-    // respond to changes to the obj.
-    Object.keys(added).forEach(function(property) {
-      //property; // a property which has been been added to obj
-      //added[property]; // its value
-    });
-    Object.keys(removed).forEach(function(property) {
-      //property; // a property which has been been removed from obj
-      //getOldValueFn(property); // its old value
-    });
-    Object.keys(changed).forEach(function(property) {
-      //property; // a property on obj which has changed value.
-      //changed[property]; // its value
-      //getOldValueFn(property); // its old value
-    });
-  });
-   */
   
+  var observer = {
+    _o: null,
+    _obj: null,
+    init: function(objToObserve) {
+      if (objToObserve === null) {
+        throw new ReferenceError("Object should not be null");
+      }
+      this._obj = objToObserve;
+      
+      if(ObjectObserver === null) {
+        throw new ReferenceError("observer-js is not exists");
+      }
+      this._o = new ObjectObserver(this._obj);
+      var self = this;
+      this._o.open(function(added, removed, changed, getOldValueFn) {
+        console.log(self._obj.a)
+        self._obj.saveValues();
+      });
+      Platform.performMicrotaskCheckpoint();
+    }      
+      /*
+      // respond to changes to the obj.
+      Object.keys(added).forEach(function(property) {
+        //property; // a property which has been been added to obj
+        //added[property]; // its value
+      });
+      Object.keys(removed).forEach(function(property) {
+        //property; // a property which has been been removed from obj
+        //getOldValueFn(property); // its old value
+      });
+      Object.keys(changed).forEach(function(property) {
+        //property; // a property on obj which has changed value.
+        //changed[property]; // its value
+        //getOldValueFn(property); // its old value
+      });
+      */    
+  }
   var api = {
     master: false,
     lastAccessedTime: new Date().getTime()
@@ -177,8 +195,8 @@ var MultiTabSingleton = function(name, obj, optionsParam) {
   }
   
   obj.loadValues();  
-  
-  return obj;
+  observer.init(obj);
+  return observer._obj;
 };
 // Version.
 MultiTabSingleton.VERSION = '0.0.1';
