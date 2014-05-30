@@ -58,12 +58,31 @@ test("the function function substitution works", function() {
   ok(obj.testObj.test4() === 'wraptest4')
 });
 
-test("the master/slave negotiation", function() {
+test("the master/slave negotiation when only one instance", function() {
   $.jStorage.flush();  
   
-  var obj = MultiTabSingleton('TestMaste',{a:2});
+  var obj = MultiTabSingleton('TestMaster',{a:2});
   ok(obj)
   ok(obj.substituteFunctionsInObject)
   ok(obj.api)
   ok(obj.api.master == true)
+  ok(obj.a === 2)
+});
+
+test("the master/slave negotiation when two instances", function() {
+  $.jStorage.flush();  
+  
+  var obj = MultiTabSingleton('TestMaster',{a:2});
+  ok(obj)
+  ok(obj.substituteFunctionsInObject)
+  ok(obj.api)
+  ok(obj.api.master == true)
+  ok(obj.a === 2)
+  
+  var slave = MultiTabSingleton('TestSlave',{a:3});
+  ok(slave)
+  ok(slave.substituteFunctionsInObject)
+  ok(slave.api)
+  ok(slave.api.master == false)
+  ok(slave.a === 2)
 });

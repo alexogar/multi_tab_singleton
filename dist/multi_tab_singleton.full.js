@@ -2799,6 +2799,16 @@
   for ( var o in defaultOptions) {
     options[o] = optionsParam[o] || defaultOptions[o];
   }  */     
+   
+  var clone = function(source,target) {
+    for (var property in source) {
+      if (typeof source[property] === "object" && source[property] !== null && destination[property]) { 
+        clone(destination[property], source[property]);
+      } else {
+        destination[property] = source[property];
+      }
+    }
+  };
 
   var substituteFunctionsInObject = function(obj, fn, iterPosParam) {
 
@@ -2848,10 +2858,10 @@
       }
     },
     get : function(key, defaultValue) {
-      return _s.get(key, defaultValue);
+      return this._s.get(key, defaultValue);
     },
     set : function(key, value) {
-      _s.set(key,value);
+      this._s.set(key,value);
     }
   };
     
@@ -2882,11 +2892,12 @@
   });
    */
   var api = {
-    master : false
+    master : false,
+    lastAccessedTime : new Date().getTime()
   };
 
   //We also need to negotiate master/slave configuration
-  var negotiateMasterSlave = function(apiObj) {
+  var negotiateMasterSlave = function() {
     //let`s check participants section in store, if there are idle participants
     //We delete them and becomes master, if there are live one we becomes slave
     var participants = store.get('participants',[])
@@ -2913,25 +2924,42 @@
     
     if (master == null) {
       //then we could become master
-      apiObj.master = true;
+      api.master = true;
       
     } 
     
-    liveParticipants.push(apiObj)
+    api.lastAccessedTime = new Date().getTime();
+    
+    liveParticipants.push(api)
       
     store.set('participants',liveParticipants);
-    return apiObj;
+    return api;
   };
+   
+  obj.loadValues = function() {
+    var storedObj = store.get(name + "_value")
+    //
+    if (storedObj) {
+      clone(storedObj,this);
+    }    
+  };
+   
+  obj.saveValues = function() {
+    store.set(name + "_value", this)
+  }
   //also we need to mock all functions we will find in that object
   //so we can execute function only on master singleton object
   obj = substituteFunctionsInObject(obj, function(path,item,parent) {
 
   });
+     
+  api = negotiateMasterSlave();   
+  obj.loadValues();
 
-  obj.substituteFunctionsInObject = substituteFunctionsInObject;
-   
- // api = negotiateMasterSlave(api); 
-  obj.api = api;
+  obj.substituteFunctionsInObject = substituteFunctionsInObject;        
+  obj.api = api;   
+  obj.loadValues = loadValues;
+  
 
   return obj;
 };
