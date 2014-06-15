@@ -16,20 +16,22 @@
  */
 var MultiTabSingleton = function(name, obj, optionsParam) {
   var __toString = Object.prototype.toString;
-  
+
   var defaultOptions = {
     heartBeat : 50,
-    heartBeatTimeout : 10
-  };     
-  
+    heartBeatTimeout : 10,
+    forseMaster : false,
+    singletonFunctionExecution : true
+  };
+
   if (optionsParam == null) {
     optionsParam = {}
   }
-     
+
   var options = {};
   for ( var o in defaultOptions) {
     options[o] = optionsParam[o] || defaultOptions[o];
-  }  
+  }
   var clone = function(source, destination) {
     for(var property in source) {
       if(typeof source[property] === "object" && source[property] !== null && destination[property]) {
@@ -39,11 +41,11 @@ var MultiTabSingleton = function(name, obj, optionsParam) {
       }
     }
   };
-  
+
   var substituteFunctionsInObject = function(obj, fn, iterPosParam) {
     var ret, objType, iterPos = iterPosParam || [],
       i = 0;
-    
+
     if(__toString.call(obj) === '[object Array]') {
       obj.forEach(function(item) {
         objType = __toString.call(item);
@@ -58,7 +60,7 @@ var MultiTabSingleton = function(name, obj, optionsParam) {
         i++;
       });
     }
-    
+
     for(var key in obj) {
       if(!("" + key).match(/^\d+$/)) {
         objType = __toString.call(obj[key]);
@@ -74,12 +76,12 @@ var MultiTabSingleton = function(name, obj, optionsParam) {
     }
     return obj;
   };
-  
+
   var store = {
     _s: null,
     init: function() {
       this._s = window.$.jStorage || window.jStorage;
-      if(this._s == null) {
+      if(this._s === null) {
         throw new ReferenceError("Error referencing jStorage, include jStorage or use full distribution");
       }
     },
@@ -89,16 +91,19 @@ var MultiTabSingleton = function(name, obj, optionsParam) {
     set: function(key, value) {
       this._s.set(key, value);
     },
-    subscribe: function(key,callback) {
-      this._s.listenKeyChange(key,callback)
+    subscribeToChanges: function(key,callback) {
+      this._s.listenKeyChange(key,callback);
+    },
+    subscribeToChannel: function(channel,callback) {
+      this._s.subscribe(channel,callback);
     }
   };
   store.init();
-  
+
   if(ObjectObserver === null) {
     throw new ReferenceError("observer-js is not exists");
   }
-  
+
   var observer = {
     _o: null,
     _obj: null,
@@ -107,15 +112,15 @@ var MultiTabSingleton = function(name, obj, optionsParam) {
         throw new ReferenceError("Object should not be null");
       }
       this._obj = objToObserve;
-      
+
       if(ObjectObserver === null) {
         throw new ReferenceError("observer-js is not exists");
       }
       this._o = new ObjectObserver(this._obj);
       var self = this;
-      this._o.open(function(added, removed, changed, getOldValueFn) {                  
+      this._o.open(function(added, removed, changed, getOldValueFn) {
         self._obj.saveValues();
-      });      
+      });
     },
     close : function() {
       this._o.close();
@@ -125,7 +130,7 @@ var MultiTabSingleton = function(name, obj, optionsParam) {
     master: false,
     lastAccessedTime: new Date().getTime()
   };
-  
+
   //We also need to negotiate master/slave configuration
   var negotiateMasterSlave = function() {
     //let`s check participants section in store, if there are idle participants
@@ -139,10 +144,10 @@ var MultiTabSingleton = function(name, obj, optionsParam) {
         liveParticipants.push(part)
       }
     }
-    
+
     //We need to check weather there is any master in live list
     var master = null;
-    
+
     for(var lp in liveParticipants) {
       var liveP = liveParticipants[lp];
       if(liveP.master && master) {
@@ -151,24 +156,43 @@ var MultiTabSingleton = function(name, obj, optionsParam) {
         master = liveP;
       }
     }
-    
+
     if(master === null) {
       //then we could become master
       api.master = true;
     }
-    
+
     api.lastAccessedTime = new Date().getTime();
-    
+
     liveParticipants.push(api)
     store.set(name+'_participants', liveParticipants);
     return api;
   };
-  
+
   //also we need to mock all functions we will find in that object
   //so we can execute function only on master singleton object
-  obj = substituteFunctionsInObject(obj, function(path, item, parent) {});
+  obj = substituteFunctionsInObject(obj, function(path, item, parent) {
+    if (typeof item === 'function') {
+      return function() {
+        if (obj.api.master) {
+          //We just call function, and pass call back
+          var args = Array.prototype.slice.call(arguments)
+          var result = item.apply(parent, args);
+          var callback = args[args.length-1];
+          var futureArgs = [];
+          futureArgs.push(result);
+          if (callback) {
+            callback.apply(parent,futureArgs);
+          }
+        } else {
+
+
+        }
+      }
+    }
+  });
   api = negotiateMasterSlave();
-  
+
   obj.loadValues = function() {
     var storedObj = store.get(name + "_value");
     //
@@ -176,32 +200,53 @@ var MultiTabSingleton = function(name, obj, optionsParam) {
       clone(storedObj, this);
     }
   };
-  
+
   obj.saveValues = function() {
     store.set(name + "_value", this)
   };
-  
+
   obj.subscribe = function() {
     var self = this;
-    store.subscribe(name + "_value", function(key, action){
+    store.subscribeToChanges(name + "_value", function(key, action){
       self.loadValues();
-    })
+    });
+
+    if (this.api.master) {
+      store.subscribeToChannel(name + "_function_calls", function(channel,payload) {
+        //Here we get definition for function call
+        //We will return result into function_results channel with id sended to us
+        var id = payload.id
+
+      });
+    }
   }
-  
+
+  var generateId = function() {
+    var text = "";
+    var possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+
+    for( var i=0; i < 5; i++ )
+        text += possible.charAt(Math.floor(Math.random() * possible.length));
+
+    return text;
+  }
+
+  api.id = generateId();
+
   obj.substituteFunctionsInObject = substituteFunctionsInObject;
-  obj.api = api;    
-  
+  obj.api = api;
+
   if (obj.api.master) {
     obj.saveValues();
   }
-  
-  obj.loadValues();    
+
+  obj.loadValues();
   observer.init(obj);
   //setup periodic interval to propagate changes and function calls if object observe doesn`t exists
   if (Object.observe == null) {
     var timeoutCallback = function() {
       Platform.performMicrotaskCheckpoint();
-      api = negotiateMasterSlave()
+      api = negotiateMasterSlave();
       setTimeout(timeoutCallback, options.heartBeatTimeout);
     }
     timeoutCallback();

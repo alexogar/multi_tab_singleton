@@ -1,4 +1,4 @@
-$.jStorage.flush(); 
+$.jStorage.flush();
 test("the base function exists with dependency", function() {
   ok(MultiTabSingleton);
   ok($.jStorage);
@@ -42,33 +42,30 @@ test("the function function substitution works", function() {
     }
   });
 
-  obj = obj.substituteFunctionsInObject(obj, function(path,item,parent) {    
-    if (typeof item === 'function') {      
-      return function() {
-        var args = Array.prototype.slice.call(arguments)
-        result = item.apply(parent, args);
-        return "wrap"+result;
-      }
-    }
+  ok(obj)
+
+  obj.test1(function(result) {
+
+    ok(result === 'test1');
+
+    obj.test2('param', function(result) {
+      ok(result === 'test2param');
+
+    });
   });
 
-  ok(obj)
-  ok(obj.test1() === 'wraptest1')
-  ok(obj.test2('param') === 'wraptest2param')
-  ok(obj.testArr[0]() === 'wraparr')
-  ok(obj.testObj.test4() === 'wraptest4')
 });
 
 test("the master/slave negotiation when only one instance", function() {
-  $.jStorage.flush();  
-  
+  $.jStorage.flush();
+
   var obj = MultiTabSingleton('TestMaster',{a:2});
   ok(obj)
   ok(obj.substituteFunctionsInObject)
   ok(obj.api)
   ok(obj.api.master == true)
   ok(obj.a === 2)
-  
+
   obj = MultiTabSingleton('TestMaster2',{a:2});
   ok(obj)
   ok(obj.substituteFunctionsInObject)
@@ -78,15 +75,15 @@ test("the master/slave negotiation when only one instance", function() {
 });
 
 test("the master/slave negotiation when two instances", function() {
-  $.jStorage.flush();  
-  
+  $.jStorage.flush();
+
   var obj = MultiTabSingleton('TestMaster',{a:2});
   ok(obj)
   ok(obj.substituteFunctionsInObject)
   ok(obj.api)
   ok(obj.api.master == true)
   ok(obj.a === 2)
-  
+
   var slave = MultiTabSingleton('TestMaster',{a:3});
   ok(slave)
   ok(slave.substituteFunctionsInObject)
@@ -96,33 +93,63 @@ test("the master/slave negotiation when two instances", function() {
 });
 
 asyncTest("the master/slave field change propagation", function() {
-  $.jStorage.flush();  
-  
+  $.jStorage.flush();
+
   var obj = MultiTabSingleton('TestMaster',{a:2});
   ok(obj)
   ok(obj.substituteFunctionsInObject)
   ok(obj.api)
   ok(obj.api.master == true)
   ok(obj.a === 2)
-  
+
   var slave = MultiTabSingleton('TestMaster',{a:3});
   ok(slave)
   ok(slave.substituteFunctionsInObject)
   ok(slave.api)
   ok(slave.api.master == false)
   ok(slave.a === 2)
-  
+
   slave.a = 5;
   setTimeout(function() {
     ok($.jStorage.get('TestMaster_value').a === 5)
-    ok(obj.a === 5);    
+    ok(obj.a === 5);
     obj.a = 6;
     setTimeout(function() {
       ok($.jStorage.get('TestMaster_value').a === 6)
       ok(slave.a === 6);
       start();
-    },1000);  
-  },1000);  
-     
+    },1000);
+  },1000);
+
+});
+
+test("test master function execution", function() {
+  $.jStorage.flush();
+  var obj = MultiTabSingleton('TestMaster',{a:2, test: function() {
+    return "MasterResult"
+  }});
+  var slave = MultiTabSingleton('TestMaster',{a:3, test: function() {
+    return "SlaveResult"
+  }});
+
+  obj.test(function(result) {
+      ok(result === "MasterResult");
+  })
+});
+
+asyncTest("test slave to master function execution", function() {
+  $.jStorage.flush();
+  var obj = MultiTabSingleton('TestMaster',{a:2, test: function() {
+    return "MasterResult"
+  }});
+  var slave = MultiTabSingleton('TestMaster',{a:3, test: function() {
+    return "SlaveResult"
+  }});
+
+  slave.test(function(result) {
+      ok(result === "MasterResult");
+      start();
+  })
+  stop();
 });
 
