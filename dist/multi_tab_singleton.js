@@ -19,7 +19,7 @@ var MultiTabSingleton = function(name, obj, optionsParam) {
 
   var defaultOptions = {
     heartBeat : 50,
-    heartBeatTimeout : 10,
+    heartBeatTimeout : 50,
     forseMaster : false,
     singletonFunctionExecution : true
   };
@@ -40,6 +40,16 @@ var MultiTabSingleton = function(name, obj, optionsParam) {
         destination[property] = source[property];
       }
     }
+  };
+
+  var generateId = function() {
+    var text = "";
+    var possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+
+    for( var i=0; i < 5; i++ )
+        text += possible.charAt(Math.floor(Math.random() * possible.length));
+
+    return text;
   };
 
   var substituteFunctionsInObject = function(obj, fn, iterPosParam) {
@@ -94,8 +104,14 @@ var MultiTabSingleton = function(name, obj, optionsParam) {
     subscribeToChanges: function(key,callback) {
       this._s.listenKeyChange(key,callback);
     },
-    subscribeToChannel: function(channel,callback) {
+    subscribe: function(channel,callback) {
       this._s.subscribe(channel,callback);
+    },
+    publish: function(channel,payload) {
+      this._s.publish(channel,payload);
+    },
+    del: function(key) {
+      this._s.deleteKey(key);
     }
   };
   store.init();
@@ -127,6 +143,7 @@ var MultiTabSingleton = function(name, obj, optionsParam) {
     }
   }
   var api = {
+    id: generateId(),
     master: false,
     lastAccessedTime: new Date().getTime()
   };
@@ -141,7 +158,9 @@ var MultiTabSingleton = function(name, obj, optionsParam) {
       var part = participants[p];
       var currentTimestamp = new Date().getTime();
       if(part.lastAccessedTime > currentTimestamp - options.heartBeat) {
-        liveParticipants.push(part)
+        if (part.id !== api.id) { //we skip ourselfs if we need to add.
+          liveParticipants.push(part);
+        }
       }
     }
 
@@ -164,7 +183,8 @@ var MultiTabSingleton = function(name, obj, optionsParam) {
 
     api.lastAccessedTime = new Date().getTime();
 
-    liveParticipants.push(api)
+    liveParticipants.push(api);
+    store.del(name+'_participants');
     store.set(name+'_participants', liveParticipants);
     return api;
   };
@@ -174,11 +194,11 @@ var MultiTabSingleton = function(name, obj, optionsParam) {
   obj = substituteFunctionsInObject(obj, function(path, item, parent) {
     if (typeof item === 'function') {
       return function() {
+        var args = Array.prototype.slice.call(arguments);
+        var callback = args[args.length-1];
         if (obj.api.master) {
           //We just call function, and pass call back
-          var args = Array.prototype.slice.call(arguments)
           var result = item.apply(parent, args);
-          var callback = args[args.length-1];
           var futureArgs = [];
           futureArgs.push(result);
           if (callback) {
@@ -186,12 +206,21 @@ var MultiTabSingleton = function(name, obj, optionsParam) {
           }
         } else {
 
+          var payload = {};
+          payload.id = generateId();
+          payload.params = args;
+          payload.name = path;
+          console.log("Payload", payload);
+          this.results[payload.id] = callback;
+
+          store.publish(name + "_function_calls", payload);
 
         }
       }
     }
   });
   api = negotiateMasterSlave();
+  obj.results = {};
 
   obj.loadValues = function() {
     var storedObj = store.get(name + "_value");
@@ -212,23 +241,32 @@ var MultiTabSingleton = function(name, obj, optionsParam) {
     });
 
     if (this.api.master) {
-      store.subscribeToChannel(name + "_function_calls", function(channel,payload) {
+      store.subscribe(name + "_function_calls", function(channel,payload) {
         //Here we get definition for function call
         //We will return result into function_results channel with id sended to us
-        var id = payload.id
+        console.info("payload",payload)
+        var id = payload.id;
+        var name = payload.name;
+        var params = payload.params;
+
+        var result = obj[name].apply(obj,params);
+        store.publish(name + "_function_results", {
+          id : id,
+          result : result
+        });
 
       });
+    } else {
+      store.subscribe(name + "_function_results", function(channel,payload) {
+        var id = payload.id;
+        var result = payload.result;
+        var futureArgs = [];
+        futureArgs.push(result);
+
+        this.results[id].apply(obj,futureArgs);
+        delete this.resuls[id];
+      });
     }
-  }
-
-  var generateId = function() {
-    var text = "";
-    var possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-
-    for( var i=0; i < 5; i++ )
-        text += possible.charAt(Math.floor(Math.random() * possible.length));
-
-    return text;
   }
 
   api.id = generateId();
