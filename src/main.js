@@ -37,6 +37,16 @@ var MultiTabSingleton = function(name, obj, optionsParam) {
     }
   };
 
+  var generateId = function() {
+    var text = "";
+    var possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+
+    for( var i=0; i < 5; i++ )
+        text += possible.charAt(Math.floor(Math.random() * possible.length));
+
+    return text;
+  };
+
   var substituteFunctionsInObject = function(obj, fn, iterPosParam) {
     var ret, objType, iterPos = iterPosParam || [],
       i = 0;
@@ -91,6 +101,9 @@ var MultiTabSingleton = function(name, obj, optionsParam) {
     },
     subscribeToChannel: function(channel,callback) {
       this._s.subscribe(channel,callback);
+    },
+    publishToChannel: function(channel,payload) {
+      this._s.publish(channel,payload);
     }
   };
   store.init();
@@ -169,11 +182,11 @@ var MultiTabSingleton = function(name, obj, optionsParam) {
   obj = substituteFunctionsInObject(obj, function(path, item, parent) {
     if (typeof item === 'function') {
       return function() {
+        var args = Array.prototype.slice.call(arguments);
+        var callback = args[args.length-1];
         if (obj.api.master) {
           //We just call function, and pass call back
-          var args = Array.prototype.slice.call(arguments)
           var result = item.apply(parent, args);
-          var callback = args[args.length-1];
           var futureArgs = [];
           futureArgs.push(result);
           if (callback) {
@@ -181,12 +194,21 @@ var MultiTabSingleton = function(name, obj, optionsParam) {
           }
         } else {
 
+          var payload = {};
+          payload.id = generateId();
+          payload.params = args;
+          console.log(item);
+          this.results[id] = callback;
+
+          store.publishToChannel(name + "_function_calls", payload);
+
 
         }
       }
     }
   });
   api = negotiateMasterSlave();
+  obj.results = {};
 
   obj.loadValues = function() {
     var storedObj = store.get(name + "_value");
@@ -210,20 +232,28 @@ var MultiTabSingleton = function(name, obj, optionsParam) {
       store.subscribeToChannel(name + "_function_calls", function(channel,payload) {
         //Here we get definition for function call
         //We will return result into function_results channel with id sended to us
-        var id = payload.id
+        var id = payload.id;
+        var name = payload.name;
+        var params = payload.params;
+
+        var result = obj[name].apply(obj,params);
+        store.publishToChannel(name + "function_results", {
+          id : id,
+          result : result
+        });
 
       });
+    } else {
+      store.subscribeToChannel(name + "function_results", function(channel,payload) {
+        var id = payload.id;
+        var result = payload.result;
+        var futureArgs = [];
+        futureArgs.push(result);
+
+        this.results[id].apply(obj,futureArgs);
+        delete this.resuls[id];
+      });
     }
-  }
-
-  var generateId = function() {
-    var text = "";
-    var possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-
-    for( var i=0; i < 5; i++ )
-        text += possible.charAt(Math.floor(Math.random() * possible.length));
-
-    return text;
   }
 
   api.id = generateId();
