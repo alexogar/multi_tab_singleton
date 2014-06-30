@@ -1,6 +1,7 @@
 # multi_tab_singleton
 
 Singleton between browser tabs
+[![Build Status](https://travis-ci.org/alexogar/multi_tab_singleton.svg?branch=master)](https://travis-ci.org/alexogar/multi_tab_singleton)
 
 ## About
 
