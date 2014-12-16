@@ -27,10 +27,19 @@
       /* begin demo script */
 
       var demo = MultiTabSingleton('VisualDemo',{
-        x : 0,
-        y : 0
+        counter: 0
+      })
+
+      demo.api.
+
+      var input = document.getElementById("counter")
+      input.addEventListener("click", function() {
+        demo.counter = input.value
       })
       /* end demo script */
     </script>
+
+    <input type="text" id="counter"></input>
+
   </body>
 </html>
